@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Хозбот — проверка магазинов</title>
+<style>
+ body{font-family:system-ui,sans-serif;margin:0;background:#f4faf6;color:#14201a}
+ header{background:#00a63e;color:#fff;padding:18px}
+ h1{margin:0;font-size:22px}
+ main{max-width:900px;margin:0 auto;padding:18px}
+ table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
+ td,th{padding:10px;border-bottom:1px solid #d9e6de;text-align:left;font-size:14px;vertical-align:top}
+ .ok{color:#008a33;font-weight:800}.no{color:#b4361b;font-weight:800}
+ small{color:#5f6b64}
+</style></head>
+<body><header><h1>🧽 Хозбот — проверка магазинов</h1></header>
+<main>
+<p>Страница проверяет все магазины по запросу «туалетная бумага». Подождите около минуты, пока все строки заполнятся, затем напишите Claude «готово».</p>
+<table><thead><tr><th>Магазин</th><th>Результат</th></tr></thead><tbody id="tb"></tbody></table>
+</main>
+<script>
+const S=["casadel","parma","tntesakan","ycity","sas","supermarket","jur","mymarket","spasq","domus"];
+const tb=document.getElementById("tb");
+S.forEach(s=>{
+  const tr=document.createElement("tr"); tr.innerHTML=`<td><b>${s}</b></td><td>проверяю…</td>`; tb.appendChild(tr);
+  fetch(`api.php?store=${s}&q=${encodeURIComponent("զուգարանի թուղթ")}&q2=${encodeURIComponent("туалетная бумага")}&debug=1`)
+   .then(r=>r.json()).then(j=>{
+     const top=j.items?.[0];
+     const tries=(j.tried||[]).map(t=>`${t.code} · ${t.bytes} байт · найдено ${t.candidates}/${t.matched}${t.err?" · "+t.err:""}`).join("<br>");
+     tr.children[1].innerHTML = (top?`<span class="ok">✔ ${top.price} ֏</span> ${top.name}`:`<span class="no">✘ нет цен</span>`)+`<br><small>${tries}</small>`;
+   }).catch(e=>{tr.children[1].innerHTML=`<span class="no">ошибка: ${e}</span>`});
+});
+</script>
+</body></html>
