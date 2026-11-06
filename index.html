@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Хозбот — цены на хозтовары в магазинах Еревана</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Noto+Sans+Armenian:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{ --green:#00a63e; --green-dark:#008a33; --green-soft:#e6f7ec; --ink:#14201a; --muted:#5f6b64; --line:#d9e6de; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4faf6;color:var(--ink);font-family:Manrope,"Noto Sans Armenian",system-ui,sans-serif}
+  header{background:var(--green);color:#fff;padding:22px 18px 70px}
+  header .in{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  h1{margin:0;font-size:26px;font-weight:800}
+  .langs{display:flex;gap:6px}
+  .langs button{font:inherit;font-weight:800;border:2px solid #fff;background:transparent;color:#fff;border-radius:999px;padding:6px 14px;cursor:pointer}
+  .langs button.on{background:#fff;color:var(--green-dark)}
+  main{max-width:900px;margin:-50px auto 0;padding:0 18px 50px}
+  .search{background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,80,30,.12);padding:14px;display:flex;gap:10px}
+  .search input{flex:1;min-width:0;font:inherit;font-size:17px;border:2px solid var(--line);border-radius:12px;padding:12px 14px}
+  .search input:focus{outline:none;border-color:var(--green)}
+  .search button{font:inherit;font-size:17px;font-weight:800;background:var(--green);color:#fff;border:0;border-radius:12px;padding:0 22px;cursor:pointer}
+  .search button:hover{background:var(--green-dark)}
+  .hint{color:var(--muted);font-size:13.5px;margin:10px 4px 0}
+  .quick{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
+  .quick button{font:inherit;font-size:13.5px;border:1.5px solid var(--green);background:#fff;color:var(--green-dark);border-radius:999px;padding:5px 12px;cursor:pointer}
+  .quick button:hover{background:var(--green-soft)}
+  #status{font-size:13.5px;color:var(--green-dark);margin:12px 4px 0;min-height:18px}
+  #results{margin-top:14px;display:flex;flex-direction:column;gap:12px}
+  .item{background:#fff;border-radius:14px;border:1px solid var(--line);padding:12px 14px}
+  .item-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .item-title{font-weight:800;font-size:18px;flex:1}
+  .del{border:0;background:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1}
+  .line{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+  .shop{flex:0 0 132px;display:flex;flex-direction:column;align-items:stretch;gap:4px}
+  .shop a.go{display:block;text-decoration:none;background:var(--green);color:#fff;font-weight:800;font-size:14px;border-radius:10px;padding:9px 14px;text-align:center;white-space:nowrap}
+  .shop a.go:hover{background:var(--green-dark)}
+  .pr{font-size:12.5px;text-align:center;color:var(--muted);line-height:1.25;min-height:34px}
+  .pr b{display:block;font-size:16px;color:var(--ink)}
+  .pr a{color:inherit;text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:132px}
+  .pr a:hover{color:var(--green-dark);text-decoration:underline}
+  .shop.best a.go{background:#007a2e;box-shadow:0 0 0 3px #b6ecc9}
+  .shop.best .pr b{color:var(--green-dark)}
+  .tag{display:inline-block;background:var(--green);color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px;margin-top:2px}
+  .dots{animation:d 1.2s ease-in-out infinite}
+  @keyframes d{0%,100%{opacity:.3}50%{opacity:1}}
+  .empty{color:var(--muted);text-align:center;padding:30px 0}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <h1>🧽 <span data-t="title"></span></h1>
+  <div class="langs" id="langs">
+    <button data-l="ru" class="on">Рус</button>
+    <button data-l="hy">Հայ</button>
+    <button data-l="en">Eng</button>
+  </div>
+</div></header>
+
+<main>
+  <form class="search" id="form">
+    <input id="q" autocomplete="off">
+    <button type="submit" data-t="find"></button>
+  </form>
+  <p class="hint" data-t="hint"></p>
+  <div class="quick" id="quick"></div>
+  <div id="status"></div>
+  <div id="results"></div>
+</main>
+
+<script>
+/* ---------- Магазины ---------- */
+const STORES = [
+  {id:"casadel",     name:"Casadel",        site:"https://casadel.am/",        search:q=>`https://casadel.am/products/search?searchQuery=${enc(q)}`},
+  {id:"parma",       name:"Parma",          site:"https://parma.am/hy/",       search:q=>`https://parma.am/hy/product/search?text=${enc(q)}`},
+  {id:"tntesakan",   name:"Tntesakan",      site:"https://tntesakan.am/hy/products"},
+  {id:"ycity",       name:"Yerevan City",   site:"https://www.yerevan-city.am/"},
+  {id:"sas",         name:"SAS",            site:"https://www.sas.am/"},
+  {id:"supermarket", name:"Supermarket.am", site:"https://supermarket.am/"},
+  {id:"jur",         name:"Jur.am",         site:"https://jur.am/"},
+  {id:"mymarket",    name:"MyMarket",       site:"https://mymarket.am/"},
+  {id:"spasq",       name:"Spasq",          site:"https://spasq.am/hy"},
+  {id:"domus",       name:"Domus",          site:"https://domus.am/"},
+];
+const enc = encodeURIComponent;
+
+/* ---------- Словарь товаров: ru / hy / en ---------- */
+const DICT = [
+ ["туалетная бумага","զուգարանի թուղթ","toilet paper"],
+ ["бумажные полотенца","թղթե սրբիչ","paper towels"],
+ ["салфетки","անձեռոցիկ","napkins"],
+ ["влажные салфетки","խոնավ անձեռոցիկ","wet wipes"],
+ ["средство для посуды","սպասք լվանալու միջոց","dishwashing liquid"],
+ ["губки","սպունգ","sponges"],
+ ["мешки для мусора","աղբի տոպրակ","garbage bags"],
+ ["стиральный порошок","լվացքի փոշի","washing powder"],
+ ["капсулы для стирки","լվացքի պատիճներ","laundry capsules"],
+ ["кондиционер для белья","լվացքի կոնդիցիոներ","fabric softener"],
+ ["отбеливатель","սպիտակեցնող միջոց","bleach"],
+ ["белизна","սպիտակեցնող միջոց","bleach"],
+ ["чистящее средство","մաքրող միջոց","cleaner"],
+ ["средство для пола","հատակի լվացման միջոց","floor cleaner"],
+ ["средство для стекол","ապակու լվացման միջոց","glass cleaner"],
+ ["средство для унитаза","զուգարանակոնքի մաքրող միջոց","toilet cleaner"],
+ ["антижир","յուղազերծող միջոց","degreaser"],
+ ["освежитель воздуха","օդի թարմացուցիչ","air freshener"],
+ ["перчатки","ձեռնոցներ","gloves"],
+ ["перчатки резиновые","ռետինե ձեռնոցներ","rubber gloves"],
+ ["тряпка","մաքրման լաթ","cleaning cloth"],
+ ["швабра","շվաբր","mop"],
+ ["веник","ավել","broom"],
+ ["ведро","դույլ","bucket"],
+ ["фольга","փայլաթիթեղ","aluminum foil"],
+ ["пищевая плёнка","սննդային թաղանթ","cling film"],
+ ["пищевая пленка","սննդային թաղանթ","cling film"],
+ ["пергамент","խմորեղենի թուղթ","baking paper"],
+ ["пакеты","տոպրակ","bags"],
+ ["одноразовая посуда","միանգամյա սպասք","disposable tableware"],
+ ["одноразовые стаканы","միանգամյա բաժակ","disposable cups"],
+ ["одноразовые тарелки","միանգամյա ափսե","disposable plates"],
+ ["зубочистки","ատամնաքչիչ","toothpicks"],
+ ["вода","ջուր","water"],
+ ["вода 19 л","ջուր 19 լ","water 19 l"],
+ ["мыло","օճառ","soap"],
+ ["жидкое мыло","հեղուկ օճառ","liquid soap"],
+ ["шампунь","շամպուն","shampoo"],
+ ["зубная паста","ատամի մածուկ","toothpaste"],
+ ["свечи","մոմ","candles"],
+ ["батарейки","մարտկոց","batteries"],
+ ["лампочка","լամպ","light bulb"],
+ ["тарелки","ափսե","plates"],
+ ["стаканы","բաժակ","glasses"],
+ ["чашки","գավաթ","cups"],
+ ["вилки","պատառաքաղ","forks"],
+ ["ложки","գդալ","spoons"],
+ ["ножи","դանակ","knives"],
+ ["кастрюля","կաթսա","pot"],
+ ["сковорода","տապակ","frying pan"],
+ ["контейнеры","տարա","containers"],
+];
+const LIDX = {ru:0, hy:1, en:2};
+const norm = s => s.toLowerCase().replace(/ё/g,"е").replace(/\s+/g," ").trim();
+const DMAP = new Map();
+DICT.forEach(row => row.forEach(w => DMAP.set(norm(w), row)));
+
+/* ---------- Тексты интерфейса ---------- */
+const UI = {
+ ru:{title:"Хозбот", find:"Найти", ph:"Что купить? Например: губки, мешки для мусора",
+     hint:"Можно несколько товаров через запятую. Под каждым магазином — найденная цена; нажмите, чтобы открыть товар на сайте магазина.",
+     none:"нет данных", load:"ищу цену…", best:"дешевле всех", empty:"Введите товар — появится список магазинов",
+     tr:"Перевожу…", trfail:"Не удалось перевести часть товаров — показаны как есть."},
+ hy:{title:"Տնտեսական բոտ", find:"Գտնել", ph:"Ի՞նչ գնել։ Օրինակ՝ սպունգ, աղբի տոպրակ",
+     hint:"Կարող եք գրել մի քանի ապրանք՝ ստորակետով։ Յուրաքանչյուր խանութի տակ՝ գտնված գինը․ սեղմեք՝ ապրանքը խանութի կայքում բացելու համար։",
+     none:"տվյալ չկա", load:"փնտրում եմ…", best:"ամենաէժանը", empty:"Գրեք ապրանքը՝ կհայտնվի խանութների ցանկը",
+     tr:"Թարգմանում եմ…", trfail:"Որոշ ապրանքներ չհաջողվեց թարգմանել։"},
+ en:{title:"HomeBot", find:"Search", ph:"What to buy? E.g. sponges, garbage bags",
+     hint:"Several items separated by commas. Each shop shows the price found; tap to open the item on the shop's site.",
+     none:"no data", load:"checking…", best:"cheapest", empty:"Type an item to see the list of shops",
+     tr:"Translating…", trfail:"Some items could not be translated."},
+};
+const QUICK = [0,1,2,4,5,6,7,10,19,24,25,30,35,21];
+
+/* ---------- Состояние ---------- */
+let lang = "ru";
+let items = [];   // [{ru, hy, en}]
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function makeItem(text){
+  const row = DMAP.get(norm(text));
+  if(row) return {ru:row[0], hy:row[1], en:row[2]};
+  // язык ввода определяем по алфавиту
+  const l = /[Ա-֏]/.test(text) ? "hy" : /[а-яё]/i.test(text) ? "ru" : "en";
+  return {[l]:text, src:l};
+}
+const nameOf = it => it[lang] || it[it.src] || it.ru || it.hy || it.en;
+
+/* ---------- Отрисовка ---------- */
+function renderUI(){
+  const t = UI[lang];
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = t[el.dataset.t]);
+  $("#q").placeholder = t.ph;
+  $("#quick").innerHTML = QUICK.map(i => `<button type="button" data-i="${i}">+ ${esc(DICT[i][LIDX[lang]])}</button>`).join("");
+  [...$("#langs").children].forEach(b => b.classList.toggle("on", b.dataset.l === lang));
+}
+function render(){
+  const t = UI[lang];
+  if(!items.length){ $("#results").innerHTML = `<div class="empty">${esc(t.empty)}</div>`; return; }
+  $("#results").innerHTML = items.map((it, idx) => {
+    const name = nameOf(it);
+    const res = PRICES[qkey(it)] || {};
+    const vals = STORES.map(s => res[s.id]?.items?.[0]?.price).filter(Boolean);
+    const min = vals.length > 1 ? Math.min(...vals) : null;
+    const shops = STORES.map(s => {
+      const r = res[s.id];
+      const top = r?.items?.[0];
+      const href = top?.url || (s.search ? s.search(it.hy || name) : s.site);
+      const isBest = !!top && min !== null && top.price === min;
+      let pr;
+      if(!r) pr = `<span class="dots">${esc(t.load)}</span>`;
+      else if(!top) pr = `<span>${esc(t.none)}</span>`;
+      else pr = `<b>${fmt(top.price)} ֏</b><a href="${esc(top.url || href)}" target="_blank" rel="noopener" title="${esc(top.name)}">${esc(top.name)}</a>${isBest ? `<span class="tag">${esc(t.best)}</span>` : ""}`;
+      return `<div class="shop ${isBest ? "best" : ""}">
+        <a class="go" href="${esc(href)}" target="_blank" rel="noopener">${esc(s.name)} →</a>
+        <div class="pr">${pr}</div>
+      </div>`;
+    }).join("");
+    return `<div class="item"><div class="item-head"><span class="item-title">${esc(name)}</span>
+      <button class="del" data-del="${idx}" title="×">×</button></div><div class="line">${shops}</div></div>`;
+  }).join("");
+}
+
+/* ---------- Цены с сервера ---------- */
+const PRICES = {};
+const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const qkey = it => (it.hy || "") + "|" + (it.ru || it.en || it[it.src] || "");
+function loadPrices(it){
+  const key = qkey(it);
+  if(PRICES[key]) return;
+  PRICES[key] = {};
+  const q = it.hy || it[it.src] || it.ru || it.en;
+  const q2 = it.ru && it.ru !== q ? it.ru : "";
+  STORES.forEach(s => {
+    fetch(`api.php?store=${s.id}&q=${enc(q)}&q2=${enc(q2)}`)
+      .then(r => r.json())
+      .catch(() => ({ok:false, items:[]}))
+      .then(j => { PRICES[key][s.id] = j || {items:[]}; render(); });
+  });
+}
+
+/* ---------- События ---------- */
+function addText(text){
+  const parts = text.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+  parts.forEach(p => {
+    const it = makeItem(p);
+    if(!items.some(x => norm(nameOf(x)) === norm(nameOf(it)) || (x.ru && x.ru === it.ru))) items.unshift(it);
+  });
+  items.forEach(loadPrices);
+  render(); save();
+}
+$("#form").onsubmit = e => { e.preventDefault(); addText($("#q").value); $("#q").value = ""; };
+$("#quick").onclick = e => {
+  const b = e.target.closest("button"); if(!b) return;
+  const r = DICT[+b.dataset.i]; addText(r[LIDX[lang]]);
+};
+$("#results").onclick = e => {
+  const d = e.target.closest("[data-del]"); if(!d) return;
+  items.splice(+d.dataset.del, 1); render(); save();
+};
+$("#langs").onclick = e => {
+  const b = e.target.closest("button"); if(!b) return;
+  lang = b.dataset.l; renderUI(); render(); save();
+};
+function save(){ try{ localStorage.setItem("hozbot3", JSON.stringify({lang, items})); }catch(e){} }
+try{ const s = JSON.parse(localStorage.getItem("hozbot3") || "null"); if(s){ lang = s.lang || "ru"; items = s.items || []; } }catch(e){}
+
+renderUI(); items.forEach(loadPrices); render();
+</script>
+</body>
+</html>
